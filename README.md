@@ -6,6 +6,7 @@ AI Agent untuk Molty Royale Battle Royale. Manajer ini memungkinkan Anda untuk m
 - **Dukungan Multi-Akun**: Kelola banyak akun dari satu antarmuka.
 - **Pembuatan Massal (Bulk Create)**: Membuat banyak akun dengan cepat menggunakan pola yang dapat disesuaikan.
 - **Log Real-time**: Pantau aktivitas bot dan log permainan secara langsung.
+- **Notifikasi Telegram**: Dapatkan notifikasi saat akun baru dibuat dan backup database otomatis.
 - **Riwayat Transaksi**: Lihat riwayat transaksi detail untuk setiap akun.
 - **Mode Ganda**: Pilih antara Mode Terintegrasi (Hemat Memori) dan Mode Terisolasi (Performa Tinggi).
 
@@ -26,6 +27,18 @@ Ikuti langkah-langkah berikut untuk menjalankan manajer di [Google Colab](https:
 !npm install
 !node manager.js
 ```
+
+## 🤖 Integrasi Telegram
+
+Untuk mendapatkan notifikasi dan backup otomatis ke Telegram, buat file `.env` di direktori utama:
+
+1. Buat bot melalui [@BotFather](https://t.me/botfather) untuk mendapatkan `Bot Token`.
+2. Dapatkan `Chat ID` Anda (bisa melalui [@userinfobot](https://t.me/userinfobot)).
+3. Buat file `.env` dengan isi sebagai berikut:
+   ```env
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   TELEGRAM_CHAT_ID=your_chat_id_here
+   ```
 
 ## 💻 Instalasi Lokal
 
