@@ -178,8 +178,8 @@ async function bulkCreateAccounts() {
                 } else {
                     console.error(`[${i + 1}/${count}] Error: Failed to create ${name}.`);
                 }
-                // Increased delay to avoid hitting server too hard
-                await new Promise(r => setTimeout(r, 3000));
+                // Small delay to avoid hitting server too hard
+                await new Promise(r => setTimeout(r, 1000));
             }
             console.log(`[Complete] ${count} accounts processed.`);
             resolve();
@@ -215,7 +215,7 @@ async function viewBattle() {
                 console.log(`[System] Starting ${idleAccounts.length} idle bots...`);
                 for (const acc of idleAccounts) {
                     startBot(acc);
-                    await new Promise(r => setTimeout(r, 1500)); // Increased stagger to prevent surge of 429s
+                    await new Promise(r => setTimeout(r, 500)); // Reduced stagger for speed
                 }
                 console.log('[System] All bots triggered. Press ENTER to refresh list.');
                 return resolve();

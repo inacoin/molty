@@ -8,37 +8,42 @@ const path = require('path');
  */
 function loadEnv() {
     const envPath = path.join(__dirname, '.env');
-    if (!fs.existsSync(envPath)) return;
+    if (!fs.existsSync(envPath)) {
+        console.log(`[Telegram] .env not found at ${envPath}`);
+        return;
+    }
 
-    try {
-        const content = fs.readFileSync(envPath, 'utf8');
-        const lines = content.split('\n');
+    const content = fs.readFileSync(envPath, 'utf8');
+    const lines = content.split('\n');
 
-        lines.forEach(line => {
-            const cleanLine = line.split('#')[0].trim();
-            if (!cleanLine) return;
+    lines.forEach(line => {
+        // Strip comments and trim carriage returns
+        const cleanLine = line.split('#')[0].trim();
+        if (!cleanLine) return;
 
-            const match = cleanLine.match(/^([\w.-]+)\s*=\s*(.*)?$/);
-            if (match) {
-                const key = match[1];
-                let value = match[2] || '';
-                if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
-                    value = value.substring(1, value.length - 1);
-                } else if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
-                    value = value.substring(1, value.length - 1);
-                }
-                process.env[key] = value.trim();
+        const match = cleanLine.match(/^([\w.-]+)\s*=\s*(.*)?$/);
+        if (match) {
+            const key = match[1];
+            let value = match[2] || '';
+            // Handle quotes
+            if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+                value = value.substring(1, value.length - 1);
+            } else if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+                value = value.substring(1, value.length - 1);
             }
-        });
-    } catch (e) {
-        // Silent error for env loading
+            process.env[key] = value.trim();
+        }
+    });
+
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+        console.log(`[Telegram] Environment variables loaded.`);
+    } else {
+        console.warn(`[Telegram] Warning: Credentials missing in .env`);
     }
 }
 
-
 // Initial load
 loadEnv();
-
 
 /**
  * Sends a document to a Telegram chat using manual multipart construction.
