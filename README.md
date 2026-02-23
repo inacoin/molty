@@ -1,2 +1,2 @@
-# molty
-Moltyroyale script
+# moltyroyale script
+Cara pakai
