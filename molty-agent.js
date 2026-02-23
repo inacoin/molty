@@ -154,97 +154,63 @@ class MoltyClient {
         return newIP;
     }
 
-    async createAccount(name) {
+    async request(config, retries = 5, backoff = 1000) {
         try {
-            const resp = await this.client.post('/accounts', { name });
+            const resp = await this.client(config);
             return resp.data;
         } catch (err) {
-            return this.handleError(err, 'createAccount');
+            const status = err.response?.status;
+            if (status === 429 && retries > 0) {
+                this.logger(`[Rate Limit] 429 encountered. Retrying in ${backoff}ms... (${retries} retries left)`);
+                await new Promise(r => setTimeout(r, backoff));
+                return this.request(config, retries - 1, backoff * 2);
+            }
+            return this.handleError(err, `${config.method?.toUpperCase()} ${config.url}`);
         }
+    }
+
+    async createAccount(name) {
+        return this.request({ method: 'post', url: '/accounts', data: { name } });
     }
 
     async getAccountHistory(limit = 50) {
-        try {
-            const resp = await this.client.get(`/accounts/history?limit=${limit}`);
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'getAccountHistory');
-        }
+        return this.request({ method: 'get', url: `/accounts/history?limit=${limit}` });
     }
 
     async getMe() {
-        try {
-            const resp = await this.client.get('/accounts/me');
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'getMe');
-        }
+        return this.request({ method: 'get', url: '/accounts/me' });
     }
 
     async getWaitingGames() {
-        try {
-            const resp = await this.client.get('/games?status=waiting');
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'getWaitingGames');
-        }
+        return this.request({ method: 'get', url: '/games?status=waiting' });
     }
 
     async createGame() {
-        try {
-            const resp = await this.client.post('/games', { hostName: "Molty" + "'s Arena" });
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'createGame');
-        }
+        return this.request({ method: 'post', url: '/games', data: { hostName: "Molty" + "'s Arena" } });
     }
 
     async registerAgent(gameId, agentName) {
-        try {
-            const resp = await this.client.post(`/games/${gameId}/agents/register`, { name: agentName });
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'registerAgent');
-        }
+        return this.request({ method: 'post', url: `/games/${gameId}/agents/register`, data: { name: agentName } });
     }
 
     async getAgentState(gameId, agentId) {
-        try {
-            const resp = await this.client.get(`/games/${gameId}/agents/${agentId}/state`);
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'getAgentState');
-        }
+        return this.request({ method: 'get', url: `/games/${gameId}/agents/${agentId}/state` });
     }
 
     async getSpectatorState(gameId) {
-        try {
-            const resp = await this.client.get(`/games/${gameId}/state`);
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'getSpectatorState');
-        }
+        return this.request({ method: 'get', url: `/games/${gameId}/state` });
     }
 
     async getItems() {
-        try {
-            const resp = await this.client.get('/items');
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'getItems');
-        }
+        return this.request({ method: 'get', url: '/items' });
     }
 
     async executeAction(gameId, agentId, action, thought = null) {
-        try {
-            const payload = { action };
-            if (thought) payload.thought = thought;
-            const resp = await this.client.post(`/games/${gameId}/agents/${agentId}/action`, payload);
-            return resp.data;
-        } catch (err) {
-            return this.handleError(err, 'executeAction');
-        }
+        const payload = { action };
+        if (thought) payload.thought = thought;
+        return this.request({ method: 'post', url: `/games/${gameId}/agents/${agentId}/action`, data: payload });
     }
+
 
     async findActiveSession(agentName) {
         try {
@@ -439,8 +405,8 @@ async function startBattle(accountConfig, logHandler = null) {
                 if (!stateResp || !stateResp.success) {
                     if (stateResp?.error?.code === 'NETWORK_ERROR') {
                         const jitter = Math.floor(Math.random() * 2000); // 0-2s jitter
-                        log(`[Loop] Network/SSL error fetching state. Retrying in ${2 + (jitter / 1000)}s...`);
-                        await new Promise(r => setTimeout(r, 2000 + jitter));
+                        log(`[Loop] Network/SSL error fetching state. Retrying in ${5 + (jitter / 1000)}s...`);
+                        await new Promise(r => setTimeout(r, 5000 + jitter));
                         continue;
                     }
                     if (stateResp?.error?.code === 'AGENT_NOT_FOUND') {
@@ -476,8 +442,8 @@ async function startBattle(accountConfig, logHandler = null) {
                         agentId = null;
                         break;
                     }
-                    log("[Loop] State unavailable. Retrying in 2s...");
-                    await new Promise(r => setTimeout(r, 2000));
+                    log("[Loop] State unavailable. Retrying in 5s...");
+                    await new Promise(r => setTimeout(r, 5000));
                     continue;
                 }
 
@@ -659,9 +625,9 @@ async function startBattle(accountConfig, logHandler = null) {
 
                     if (result && result.success) {
                         if (isGroup1(action)) {
-                            const jitter = Math.floor(Math.random() * 3000); // 0-3s jitter
-                            log(`[Loop] Action cooldown: ${5.5 + (jitter / 1000)}s including jitter...`);
-                            await new Promise(r => setTimeout(r, 5500 + jitter));
+                            const jitter = Math.floor(Math.random() * 4000); // 0-4s jitter
+                            log(`[Loop] Action cooldown: ${8.0 + (jitter / 1000)}s including jitter...`);
+                            await new Promise(r => setTimeout(r, 8000 + jitter));
                         } else {
                             log("[Loop] Minor action detected. No cooldown. Proceeding...");
                             await new Promise(r => setTimeout(r, 500)); // Fast safety pause
