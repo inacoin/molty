@@ -121,9 +121,28 @@ function saveToAccountsFile(oldAccountId, newData) {
     return false;
 }
 
-// Helper to generate a random IP address
+// Helper to generate a random public IP address
 function generateRandomIP() {
-    return Array.from({ length: 4 }, () => Math.floor(Math.random() * 256)).join('.');
+    const isPrivate = (octets) => {
+        const o1 = octets[0];
+        const o2 = octets[1];
+        if (o1 === 10) return true;
+        if (o1 === 172 && (o2 >= 16 && o2 <= 31)) return true;
+        if (o1 === 192 && o2 === 168) return true;
+        if (o1 === 127) return true;
+        if (o1 === 0) return true;
+        if (o1 === 169 && o2 === 254) return true; // Link-local
+        if (o1 === 100 && (o2 >= 64 && o2 <= 127)) return true; // Carrier-grade NAT
+        if (o1 >= 224) return true; // Multicast/Reserved
+        return false;
+    };
+
+    let octets;
+    do {
+        octets = Array.from({ length: 4 }, () => Math.floor(Math.random() * 256));
+    } while (isPrivate(octets));
+
+    return octets.join('.');
 }
 
 // API Client
@@ -131,26 +150,50 @@ class MoltyClient {
     constructor(apiKey = null, logger = null, ipAddress = null) {
         this.logger = logger || ((msg) => console.log(msg));
         this.currentIP = ipAddress || generateRandomIP();
+        this.currentUA = this.getRandomUA();
         this.client = axios.create({
             baseURL: BASE_URL,
             headers: {
-                'Content-Type': 'application/json',
-                'X-Forwarded-For': this.currentIP
+                'Content-Type': 'application/json'
             }
         });
+        this.setupInterceptors();
         if (apiKey) this.setApiKey(apiKey);
     }
 
+    getRandomUA() {
+        const userAgents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'
+        ];
+        return userAgents[Math.floor(Math.random() * userAgents.length)];
+    }
+
+    setupInterceptors() {
+        this.client.interceptors.request.use(config => {
+            config.headers['X-Forwarded-For'] = this.currentIP;
+            config.headers['X-Real-IP'] = this.currentIP;
+            config.headers['X-Originating-IP'] = this.currentIP;
+            config.headers['X-Client-IP'] = this.currentIP;
+            config.headers['Client-IP'] = this.currentIP;
+            config.headers['User-Agent'] = this.currentUA;
+            return config;
+        }, error => Promise.reject(error));
+    }
+
     setApiKey(apiKey) {
-        this.client.defaults.headers['X-API-Key'] = apiKey;
+        this.client.defaults.headers.common['X-API-Key'] = apiKey;
     }
 
     // Refresh IP for new requests (especially account creation)
     refreshIP() {
         const newIP = generateRandomIP();
         this.currentIP = newIP;
-        this.client.defaults.headers['X-Forwarded-For'] = newIP;
-        this.logger(`[Network] Spoofing IP: ${newIP}`);
+        this.currentUA = this.getRandomUA();
+        this.logger(`[Network] Spoofing IP: ${newIP} | UA: ${this.currentUA.slice(0, 30)}...`);
         return newIP;
     }
 
@@ -397,6 +440,10 @@ async function startBattle(accountConfig, logHandler = null) {
                 } else if (registration?.error?.code === 'MAX_AGENTS_REACHED') {
                     log(`[Lobby] Room ${game.id} is full. Trying next room...`);
                     continue;
+                } else if (registration?.error?.code === 'TOO_MANY_AGENTS_PER_IP') {
+                    log(`[Network] Hit IP limit. Rotating IP and retrying room scan...`);
+                    molty.refreshIP();
+                    break; // Break the room-join loop to re-scan with new IP (or just continues outer while (!agentId))
                 } else if (registration?.error?.code === 'ONE_AGENT_PER_API_KEY') {
                     logErr("[Lobby] API Key already has an agent in this game. Resuming...");
                     const specState = await molty.getSpectatorState(game.id);
@@ -532,7 +579,7 @@ async function startBattle(accountConfig, logHandler = null) {
                         // Update the active molty client for the next iteration
                         molty.setApiKey(currentAccount.apiKey);
                         molty.currentIP = currentAccount.ipAddress;
-                        molty.client.defaults.headers['X-Forwarded-For'] = currentAccount.ipAddress;
+                        molty.currentUA = molty.getRandomUA();
 
                         agentId = null; // Force room discovery
                         gameId = null;
